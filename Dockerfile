@@ -1,29 +1,31 @@
-FROM php:8.2-fpm-alpine
+FROM php:8.1-fpm
 
-RUN apk add --no-cache \
-    bash git curl zip unzip mariadb-client nginx supervisor nodejs npm openssl \
-    libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev oniguruma-dev libzip-dev \
-  && docker-php-ext-configure gd \
-        --with-freetype \
-        --with-jpeg \
-        --with-webp \
-  && docker-php-ext-install pdo pdo_mysql mbstring zip bcmath gd
+RUN apt-get update && apt-get install -y \
+    curl zip unzip git nginx supervisor \
+    libpng-dev libonig-dev libxml2-dev libzip-dev \
+    libcurl4-openssl-dev libssl-dev \
+    libpq-dev mariadb-client \
+    && docker-php-ext-install pdo pdo_mysql mbstring zip exif pcntl bcmath curl
 
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-RUN git clone https://github.com/pterodactyl/panel.git /var/www/html
-WORKDIR /var/www/html
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g yarn
 
-RUN mkdir -p storage/logs bootstrap/cache
-RUN cp .env.example .env
+WORKDIR /var/www/panel
 
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 storage bootstrap/cache
+RUN git clone https://github.com/pterodactyl/panel.git . && \
+    git checkout v1.11.4
 
-USER www-data
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
-RUN php artisan key:generate
+RUN composer install --no-dev --optimize-autoloader && \
+    yarn && yarn build:production && \
+    mkdir -p /var/www/panel/storage/logs && \
+    chown -R www-data:www-data /var/www/panel
 
-USER root
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=80"]
+EXPOSE 80
+CMD ["/start.sh"]

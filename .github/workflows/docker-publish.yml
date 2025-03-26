@@ -22,4 +22,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/pterodactyl-panel:umbrel
+          tags: ghcr.io/lucasgalvaonunes/pterodactyl-panel:umbrel
